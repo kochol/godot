@@ -74,6 +74,13 @@ public:
 		RPC_MODE_SLAVE, // usinc rpc() on it will call method for all slaves, be it local or remote
 	};
 
+	enum ReplicateMode {
+
+		REPLICATE_MODE_INHERIT,
+		REPLICATE_MODE_ENABLE,
+		REPLICATE_MODE_DISABLE
+	};
+
 	struct Comparator {
 
 		bool operator()(const Node *p_a, const Node *p_b) const { return p_b->is_greater_than(p_a); }
@@ -120,6 +127,8 @@ private:
 		Node *pause_owner;
 
 		int network_master;
+		ReplicateMode replicate_mode;
+		Node *replicate_owner;
 		Map<StringName, RPCMode> rpc_methods;
 		Map<StringName, RPCMode> rpc_properties;
 
@@ -169,6 +178,7 @@ private:
 	void _propagate_validate_owner();
 	void _print_stray_nodes();
 	void _propagate_pause_owner(Node *p_owner);
+	void _propagate_replicate_owner(Node *p_owner);
 	Array _get_node_and_resource(const NodePath &p_path);
 
 	void _duplicate_signals(const Node *p_original, Node *p_copy) const;
@@ -394,6 +404,9 @@ public:
 	void set_network_master(int p_peer_id, bool p_recursive = true);
 	int get_network_master() const;
 	bool is_network_master() const;
+
+	void set_replicate_mode(ReplicateMode p_mode);
+	ReplicateMode get_replicate_mode() const;
 
 	void rpc_config(const StringName &p_method, RPCMode p_mode); // config a local method for RPC
 	void rset_config(const StringName &p_property, RPCMode p_mode); // config a local property for RPC

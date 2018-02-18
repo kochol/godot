@@ -41,6 +41,7 @@
 
 VARIANT_ENUM_CAST(Node::PauseMode);
 VARIANT_ENUM_CAST(Node::RPCMode);
+VARIANT_ENUM_CAST(Node::ReplicateMode);
 
 void Node::_notification(int p_notification) {
 
@@ -478,6 +479,48 @@ bool Node::is_network_master() const {
 	ERR_FAIL_COND_V(!is_inside_tree(), false);
 
 	return get_tree()->get_network_unique_id() == data.network_master;
+}
+
+void Node::set_replicate_mode(ReplicateMode p_mode) {
+
+
+	if (data.replicate_mode == p_mode)
+		return;
+
+	bool prev_inherits = data.replicate_mode == REPLICATE_MODE_INHERIT;
+	data.replicate_mode = p_mode;
+	if (!is_inside_tree())
+		return; //pointless
+	if ((data.replicate_mode == REPLICATE_MODE_INHERIT) == prev_inherits)
+		return; ///nothing changed
+
+	Node *owner = NULL;
+
+	if (data.replicate_mode == REPLICATE_MODE_INHERIT) {
+
+		if (data.parent)
+			owner = data.parent->data.replicate_owner;
+	} else {
+		owner = this;
+	}
+
+	_propagate_replicate_owner(owner);
+}
+
+Node::ReplicateMode Node::get_replicate_mode() const {
+
+	return data.replicate_mode;
+}
+
+void Node::_propagate_replicate_owner(Node *p_owner) {
+
+	if (this != p_owner && data.replicate_mode != PAUSE_MODE_INHERIT)
+		return;
+	data.replicate_owner = p_owner;
+	for (int i = 0; i < data.children.size(); i++) {
+
+		data.children[i]->_propagate_replicate_owner(p_owner);
+	}
 }
 
 /***** RPC CONFIG ********/
@@ -2884,6 +2927,9 @@ void Node::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_network_master", "id", "recursive"), &Node::set_network_master, DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("get_network_master"), &Node::get_network_master);
 
+	ClassDB::bind_method(D_METHOD("set_replicate_mode", "mode"), &Node::set_replicate_mode);
+	ClassDB::bind_method(D_METHOD("get_replicate_mode"), &Node::get_replicate_mode);
+
 	ClassDB::bind_method(D_METHOD("is_network_master"), &Node::is_network_master);
 
 	ClassDB::bind_method(D_METHOD("rpc_config", "method", "mode"), &Node::rpc_config);
@@ -2943,6 +2989,10 @@ void Node::_bind_methods() {
 	BIND_ENUM_CONSTANT(RPC_MODE_MASTER);
 	BIND_ENUM_CONSTANT(RPC_MODE_SLAVE);
 
+	BIND_ENUM_CONSTANT(REPLICATE_MODE_INHERIT);
+	BIND_ENUM_CONSTANT(REPLICATE_MODE_ENABLE);
+	BIND_ENUM_CONSTANT(REPLICATE_MODE_DISABLE);
+
 	BIND_ENUM_CONSTANT(PAUSE_MODE_INHERIT);
 	BIND_ENUM_CONSTANT(PAUSE_MODE_STOP);
 	BIND_ENUM_CONSTANT(PAUSE_MODE_PROCESS);
@@ -2956,6 +3006,8 @@ void Node::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("tree_entered"));
 	ADD_SIGNAL(MethodInfo("tree_exiting"));
 	ADD_SIGNAL(MethodInfo("tree_exited"));
+
+	ADD_PROPERTYNZ(PropertyInfo(Variant::INT, "replicate_mode", PROPERTY_HINT_ENUM, "Inherit,Enable,Disable"), "set_replicate_mode", "get_replicate_mode");
 
 	//ADD_PROPERTYNZ( PropertyInfo( Variant::BOOL, "process/process" ),"set_process","is_processing") ;
 	//ADD_PROPERTYNZ( PropertyInfo( Variant::BOOL, "process/physics_process" ), "set_physics_process","is_physics_processing") ;
@@ -3013,6 +3065,8 @@ Node::Node() {
 	data.pause_mode = PAUSE_MODE_INHERIT;
 	data.pause_owner = NULL;
 	data.network_master = 1; //server by default
+	data.replicate_mode = REPLICATE_MODE_INHERIT;
+	data.replicate_owner = NULL;
 	data.path_cache = NULL;
 	data.parent_owned = false;
 	data.in_constructor = true;
